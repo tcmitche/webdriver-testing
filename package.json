@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "chai": "~2.2.0",
+    "chai-as-promised": "~4.3.0",
+    "webdriverio": "~2.4.5",
+    "selenium-standalone": "~4.2.2",
+    "lodash": "~3.6.0",
+    "q": "~1.2.0"
+  }
+}
