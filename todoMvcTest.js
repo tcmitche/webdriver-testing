@@ -1,9 +1,9 @@
 var webdriverio = require('webdriverio');
-var chai = require("chai");
+var chai = require('chai');
 var assert = chai.assert;
-var chaiAsPromised = require("chai-as-promised");
-var _ = require("lodash");
-var Q = require("q");
+var chaiAsPromised = require('chai-as-promised');
+var H = require('./helpers')
+var Q = require('Q')
 
 chai.should();
 chai.use(chaiAsPromised);
@@ -14,16 +14,20 @@ var options = {
   }
 };
 
-var client = require("webdriverio").remote(options);
-var appUrl = 'http://todomvc.com/examples/angularjs/';
+var client = webdriverio.remote(options);
+var appUrl = 'http://todomvc.com/examples/knockoutjs/';
 
-function getRandomString(len) {
-  var chars = '`1234567890-=~!@#$%^&*()_+qwertyuiop[]\\QWERTYUIOP{}|asdfghjkl;\'ASDFGHJKL:"zxcvbnm,./ZXCVBNM<>?'
-  return _.sample(_.shuffle(chars.split('')), 10).join('');
+function pressButton(submitKey) {
+  return function(selector, cb) {
+    this.addValue(selector, submitKey, cb);
+  }
 }
+client.addCommand("pressReturn", pressButton('\uE006'));
+client.addCommand("pressEnter", pressButton('\uE007'));
 
-function getRandomStrings(n, len) {
-  return _.range(2, _.random(3, n)).map(_.partial(getRandomString, len));
+function resetBrowser() {
+  client.end();
+  return client.init().url(appUrl).waitFor('#todoapp', 5000);
 }
 
 describe('Todos', function() {
@@ -45,55 +49,70 @@ describe('Todos', function() {
   });
 
   describe('Adding a todo', function() {
-    function addTodoTest(submitKey) {
-      submitKey = submitKey || '\uE006';
-      return function() {
-        var randomString = getRandomString(10);
-        return client.setValue('input#new-todo', randomString)
-          .addValue('input#new-todo', submitKey)
+    beforeEach(resetBrowser);
+    it('should add an item to the todo list if text is entered and return is pressed', function() {
+      var randomString = H.getRandomString();
+      return client.setValue('input#new-todo', randomString)
+          .pressReturn('input#new-todo')
           .getText('ul#todo-list > li').should.eventually.equal(randomString);
-      };
-    }
-    beforeEach(function() {
-      client.end();
-      return client.init().url(appUrl).waitFor('#todoapp', 5000);
     });
-    it('should add an item to the todo list if text is entered and return is pressed', addTodoTest());
-    it('should add an item to the todo list if text is entered and enter is pressed', addTodoTest('\uE007'));
+    it('should add an item to the todo list if text is entered and enter is pressed', function() {
+      var randomString = H.getRandomString();
+      return client.setValue('input#new-todo', randomString)
+          .pressEnter('input#new-todo')
+          .getText('ul#todo-list > li').should.eventually.equal(randomString);
+    });
     it('should not add an item to the todo list if no text is entered', function() {
-      client.addValue('input#new-todo', '\uE006')
-      client.getText('ul#todo-list').should.eventually.equal('')
+      return client
+        .pressReturn('input#new-todo')
+        .getText('ul#todo-list').should.eventually.equal('')
     });
     it('should add new items after the existing ones', function() {
-      var randomTodos = getRandomStrings(10, 10);
-      randomTodos.map(function(todo) {
-        client.setValue('input#new-todo', todo).addValue('input#new-todo', '\uE006');
-      });
-      assert.eventually.sameMembers(client.getText('ul#todo-list > li'), randomTodos);
-      randomTodos.map(function(todo, i) {
-        client.getText('ul#todo-list > li:nth-child(' + (i+1) + ')').should.eventually.equal(todo)
-      });
+      var randomTodos = H.getRandomStrings(10);
+      return Q.all(randomTodos
+        .map(function(todo) {
+          return client
+            .setValue('input#new-todo', todo)
+            .pressReturn('input#new-todo')
+        })
+        .map(function(todo, i) {
+          return client
+            .getText('ul#todo-list > li:nth-child(' + (i+1) + ')')
+            .should.eventually.equal(randomTodos[i])
+        })
+      );
     });
   })
 
   describe('Checking a todo', function() {
-    beforeEach(function() {
-      client.end();
-      return client.init().url(appUrl).waitFor('#todoapp', 5000);
-    });
+    beforeEach(resetBrowser);
     it('should cross off a todo', function() {
-      client.setValue('input#new-todo', getRandomString(10))
-        .addValue('input#new-todo', '\uE006')
+      return client
+        .setValue('input#new-todo', H.getRandomString())
+        .pressReturn('input#new-todo')
         .click('ul#todo-list > li input.toggle')
         .getAttribute('ul#todo-list > li', 'class').should.eventually.contain('completed')
     });
     it('should make the todo visible on the "completed" list', function() {
-      var randomString = getRandomString(10)
-      client.setValue('input#new-todo', randomString)
-        .addValue('input#new-todo', '\uE006')
+      var randomString = H.getRandomString()
+      return client
+        .setValue('input#new-todo', randomString)
+        .pressReturn('input#new-todo')
         .click('ul#todo-list > li input.toggle')
         .click('#filters > li:nth-child(3)')
         .getText('ul#todo-list > li').should.eventually.equal(randomString);
+    });
+  });
+
+  describe('Removing a todo', function() {
+    beforeEach(function() {
+      return client.execute(H.fixObnoxiouslyInaccessableDestroyTodoButton);
+    });
+    it('should remove a todo from the list', function() {
+      return client
+        .setValue('input#new-todo', H.getRandomString())
+        .pressReturn('input#new-todo')
+        .click('ul#todo-list li .destroy');
     });
   });
 
