@@ -19,7 +19,7 @@ var appUrl = 'http://todomvc.com/examples/knockoutjs/';
 
 function pressButton(submitKey) {
   return function(selector, cb) {
-    this.addValue(selector, submitKey, cb);
+    client.addValue(selector, submitKey, cb);
   }
 }
 client.addCommand("pressReturn", pressButton('\uE006'));
